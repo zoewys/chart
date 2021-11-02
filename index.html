@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.8.0/jszip.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.8.0/xlsx.js"></script>
+    <script src="https://unpkg.com/dayjs@1.8.21/dayjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.6.0/chart.min.js" integrity="sha512-GMGzUEevhWh8Tc/njS0bDpwgxdCJLQBWG3Z2Ct+JGOpVnEmjvNx6ts4v6A2XJf1HOrtOsfhv3hBKpK9kE5z8AQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+    <div>
+        <br/>
+        <input id="fileInput" type="file">
+    </div>
+    <canvas id="canvas" height="450" width="600" style="background-color: #ffffff;"></canvas>
+    <script>
+        (function () {
+            const input = document.getElementById('fileInput')
+            const canvas = document.getElementById('canvas')
+            input.onchange = () => {
+                const file = input.files[0]
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    const data = e.target.result;
+                    const workbook = XLSX.read(data, {
+                        type: 'binary'
+                    });
+                    // console.log('workbook', workbook)
+                    let list = []
+                    workbook.SheetNames.forEach((sheetName) => {
+                        const key = workbook.Sheets[sheetName]
+                        list = list.concat(XLSX.utils.sheet_to_row_object_array(key))
+                    })
+
+                    drawChart(list)
+                };
+
+                reader.onerror = function (ex) {
+                    console.log(ex);
+                };
+
+                reader.readAsBinaryString(file);
+            }
+
+            const fmtData = (data) => {
+                const r = {}
+                const key = '姓名（必填）'
+                data.forEach(v => {
+                    const k = v[key]
+                    // console.log('vvv', v)
+                    if (r[k]) {
+                        r[k].push(v)
+                    } else {
+                        r[k] = []
+                    }
+                })
+                return r
+            }
+
+            const drawChart = (list) => {
+                const labels = getLabels(list)
+                const data = getChartData(list)
+                const plugin = getBg()
+                // console.log('labels', labels)
+                const chartData = {
+                    labels: labels,
+                    datasets: data
+                }
+                new Chart(canvas.getContext("2d"),{
+                    data: chartData,
+                    type: "line",
+                    options: chartData,
+                    plugins: [plugin]
+
+                });
+            }
+
+            const getBg = () => {
+                return {
+                    beforeDraw: (chart) => {
+                        const ctx = chart.canvas.getContext('2d');
+                        ctx.save();
+                        ctx.globalCompositeOperation = 'destination-over';
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, chart.width, chart.height);
+                        ctx.restore();
+                    }
+                }
+            }
+
+            const getLabels = (list) => {
+                const key = '提交时间（自动）'
+
+                const labels = list
+                    .map(v=> dayjs(v[key]).format('YYYY-MM-DD'))
+                    .filter((item, index, arr) => arr.indexOf(item, 0) === index)
+                    .sort((a,b) =>  new Date(a) - new Date(b))
+
+                // console.log('labels', labels)
+                return labels
+            }
+
+            const getChartData = (list) => {
+                const obj = fmtData(list)
+                // console.log('obj', obj)
+                let dataset = []
+                for ( let k in obj ) {
+                    if (obj[k] && obj[k].length) {
+                        const color = getRandomColor()
+                        const points = getPoint(obj[k])
+                        // console.log('points', points)
+                        dataset.push({
+                            label: k,
+                            fillColor : color,
+                            strokeColor : color,
+                            pointColor : color,
+                            pointStrokeColor :color,
+                            data : points,
+                            bezierCurve : false,
+                            backgroundColor: [
+                                color,
+                            ],
+                            borderColor: [
+                                color,
+                            ],
+                        })
+                    }
+                }
+                // console.log('dataset', dataset)
+                return dataset
+            }
+
+            const getPoint = (person) => {
+                const key = '学习/分钟（必填）'
+                const pl = person.map(v=>{
+                    return parseInt(v[key])
+                })
+                return pl
+            }
+
+            const getRandomColor = () => {
+                const letters = '0123456789ABCDEF';
+                let color = '#';
+                for (let i = 0; i < 6; i++) {
+                    color += letters[Math.floor(Math.random() * 16)];
+                }
+                return color;
+            }
+        })()
+    </script>
+</body>
+</html>
